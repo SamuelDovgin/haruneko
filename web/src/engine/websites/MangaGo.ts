@@ -23,7 +23,14 @@ export default class extends DecoratableMangaScraper {
 
     public override async FetchChapters(manga: Manga): Promise<Chapter[]> {
         const data = await this.#drm.CreateChapterList(this.URI, new URL(manga.Identifier, this.URI));
-        return data.map(({ id, title }) => new Chapter(this, manga, id, title));
+        // MangaGo returns its visible listing newest-first. Prefixing with the
+        // inverse list index gives the oldest entry 0001 and keeps that position
+        // in both HakuNeko's UI and the downloaded folder name. This also gives
+        // unnumbered notices, extras, and side stories an exact relative order.
+        return data.map(({ id, title }, index) => {
+            const position = String(data.length - index).padStart(4, '0');
+            return new Chapter(this, manga, id, `${position}.000_${title}`);
+        });
     }
 
     public override async FetchPages(chapter: Chapter): Promise<Page[]> {
