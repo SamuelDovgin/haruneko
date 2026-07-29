@@ -508,6 +508,7 @@ export { default as Ngomik } from './Ngomik';
 export { default as NhatTruyen } from './NhatTruyen';
 export { default as NHentai } from './NHentai';
 export { default as NHentaiCom } from './NHentaiCom';
+export { default as NHentaiYaoi } from './NHentaiYaoi';
 export { default as NiceOppai } from './NiceOppai';
 export { default as NicoManga } from './NicoManga';
 export { default as NicoNicoSeiga } from './NicoNicoSeiga';
