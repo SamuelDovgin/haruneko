@@ -1,93 +1,64 @@
-// Auto-Generated export from HakuNeko Legacy
-// See: https://gist.github.com/ronny1982/0c8d5d4f0bd9c1f1b21dbf9a2ffbfec9
-
-//import { Tags } from '../../Tags';
+import { Tags } from '../../Tags';
 import icon from './EHentai.webp';
-import { DecoratableMangaScraper } from '../../providers/MangaPlugin';
+import { type Chapter, DecoratableMangaScraper, Page } from '../../providers/MangaPlugin';
+import { FetchCSS } from '../../platform/FetchProvider';
+import * as Common from '../decorators/Common';
 
+@Common.MangaCSS(/^{origin}\/g\/\d+\/[0-9a-f]+\/$/, 'div.gm div#gd2 h1#gn')
+@Common.MangasNotSupported()
+@Common.ChaptersUniqueFromManga()
+@Common.ImageAjaxFromHTML('img#img')
 export default class extends DecoratableMangaScraper {
 
     public constructor() {
-        super('ehentai', `E-Hentai`, 'https://e-hentai.org' /*, Tags.Language.English, Tags ... */);
+        super(
+            'ehentai',
+            'E-Hentai',
+            'https://e-hentai.org',
+            Tags.Media.Manga,
+            Tags.Media.Comic,
+            Tags.Language.Multilingual,
+            Tags.Source.Aggregator,
+            Tags.Rating.Pornographic,
+        );
     }
 
     public override get Icon() {
         return icon;
     }
-}
 
-// Original Source
-/*
-class EHentai extends Connector {
+    public override async FetchPages(chapter: Chapter): Promise<Page[]> {
+        const gallery = new URL(chapter.Identifier, this.URI);
+        const firstRequest = new Request(gallery, {
+            headers: { Referer: gallery.href },
+        });
+        const pagination = await FetchCSS<HTMLAnchorElement>(firstRequest, 'table.ptt td a');
+        const pageCount = Math.max(
+            1,
+            ...pagination
+                .map(anchor => Number.parseInt(anchor.textContent.trim(), 10))
+                .filter(Number.isFinite),
+        );
 
-    constructor() {
-        super();
-        super.id = 'ehentai';
-        super.label = 'E-Hentai';
-        this.tags = ['hentai', 'multi-lingual'];
-        this.url = 'https://e-hentai.org';
-        this.links = {
-            login: 'https://forums.e-hentai.org/index.php?act=Login&CODE=00'
-        };
-        this.requestOptions.headers.set('x-cookie', 'nw=1');
-
-        this.config = {
-            throttle: {
-                label: 'Throttle Requests [ms]',
-                description: 'Enter the timespan in [ms] to delay consecuitive HTTP requests.\nThe website may block images for to many consecuitive requests.',
-                input: 'numeric',
-                min: 250,
-                max: 1000,
-                value: 500
+        const pages: Page[] = [];
+        for (let index = 0; index < pageCount; index++) {
+            const uri = new URL(gallery);
+            if (index > 0) {
+                uri.searchParams.set('p', `${index}`);
             }
-        };
-    }
 
-    async _getMangaFromURI(uri) {
-        let request = new Request(uri, this.requestOptions);
-        let data = await this.fetchDOM(request, 'div.gm div#gd2 h1#gn', 3);
-        let id = uri.pathname;
-        let title = data[0].textContent.trim();
-        return new Manga(this, id, title);
-    }
-
-    async _getMangas() {
-        let msg = 'This website does not provide a manga list, please copy and paste the URL containing the images directly from your browser into HakuNeko.';
-        throw new Error(msg);
-    }
-
-    async _getChapters(manga) {
-        return [ Object.assign({ language: '' }, manga) ];
-    }
-
-    async _getPages(chapter) {
-        const pageLinks = [];
-        const uri = new URL(chapter.id, this.url);
-        let data = await this.fetchDOM(new Request(uri, this.requestOptions), 'div.gtb table.ptt td:nth-last-of-type(2) a');
-        const pageCount = parseInt(data.pop().text.trim());
-        for(let page = 0; page < pageCount; page++) {
-            uri.searchParams.set('p', page);
-            data = await this.fetchDOM(new Request(uri, this.requestOptions), 'div#gdt a');
-            const pages = data.map(element => this.createConnectorURI(this.getAbsolutePath(element, uri.href)));
-            pageLinks.push(...pages);
+            const request = index === 0
+                ? firstRequest
+                : new Request(uri, { headers: { Referer: gallery.href } });
+            const viewers = await FetchCSS<HTMLAnchorElement>(request, 'div#gdt a');
+            pages.push(...viewers.map(anchor => {
+                const viewer = new URL(anchor.href, uri);
+                return new Page(this, chapter, viewer, { Referer: viewer.href });
+            }));
         }
-        return pageLinks;
-    }
 
-    async _handleConnectorURI(payload) {
-        let request = new Request(payload, this.requestOptions);
-        let data = (await this.fetchDOM(request, 'source#img, a[href*="fullimg.php"]')).reverse();
-        let response = await fetch(this.getAbsolutePath(data[0], request.url), this.requestOptions);
-        if(!response.headers.get('content-type').startsWith('image/')) {
-            response = await fetch(this.getAbsolutePath(data[0], request.url), this.requestOptions);
-            //console.log('Download Optimized:', response.url);
-        } else {
-            //console.log('Download Original:', response.url);
-        }
-        return {
-            mimeType: response.headers.get('content-type'),
-            data: new Uint8Array(await response.arrayBuffer())
-        };
+        return pages.filter((page, index, all) =>
+            index === all.findIndex(candidate => candidate.Link.href === page.Link.href),
+        );
     }
 }
-*/
