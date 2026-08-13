@@ -1,13 +1,13 @@
 import { Tags } from '../Tags';
 import icon from './MangaGo.webp';
 import type { Priority } from '../taskpool/DeferredTask';
-import { DecoratableMangaScraper, type Manga, Chapter, Page } from '../providers/MangaPlugin';
+import { DecoratableMangaScraper, Manga, type MangaPlugin, Chapter, Page } from '../providers/MangaPlugin';
+import { FetchWindowScript } from '../platform/FetchProvider';
 import DeScramble from '../transformers/ImageDescrambler';
 import * as Common from './decorators/Common';
 
 import { DRMProvider } from './MangaGo.DRM';
 
-@Common.MangaCSS(/^{origin}\/read-manga\/[^/]+\/$/, 'div#page div.people-panel div.w-title h1')
 @Common.MangasMultiPageCSS('div.pic_list span.title a', Common.PatternLinkGenerator('/genre/all/{page}/'), 0, Common.AnchorInfoExtractor(true))
 export default class extends DecoratableMangaScraper {
 
@@ -19,6 +19,20 @@ export default class extends DecoratableMangaScraper {
 
     public override get Icon() {
         return icon;
+    }
+
+    public override ValidateMangaURL(url: string): boolean {
+        return new RegExpSafe(`^${this.URI.origin}/read-manga/[^/]+/$`).test(url);
+    }
+
+    public override async FetchManga(provider: MangaPlugin, url: string): Promise<Manga> {
+        const uri = new URL(url);
+        const title = await FetchWindowScript<string>(new Request(uri), `
+            document.querySelector('div#page div.people-panel div.w-title h1')?.textContent?.trim()
+                || document.querySelector('meta[property="og:title"]')?.content?.trim()
+                || document.title.replace(/\\s*(?:manga\\s*)?-\\s*Mangago.*$/i, '').trim();
+        `, 500);
+        return new Manga(this, provider, uri.pathname, title);
     }
 
     public override async FetchChapters(manga: Manga): Promise<Chapter[]> {
